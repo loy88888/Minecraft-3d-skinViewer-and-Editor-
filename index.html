@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GLB Viewer with Explode and Arm Controls</title>
+  <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Arial', sans-serif;
+      background-color: #f3f4f6;
+    }
+
+    #ui-container {
+      max-width: 350px;
+      background-color: #ffffff;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      padding: 16px;
+      border-radius: 8px;
+    }
+
+    h3 {
+      font-size: 1.25rem;
+      color: #374151;
+      margin-bottom: 8px;
+    }
+
+    button {
+      transition: all 0.2s ease-in-out;
+    }
+
+    button:hover {
+      transform: scale(1.05);
+    }
+
+    .collapsible {
+      cursor: pointer;
+      background-color: #f9fafb;
+      border: none;
+      outline: none;
+      padding: 10px;
+      text-align: left;
+      font-size: 1rem;
+      font-weight: bold;
+      color: #374151;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+
+    .collapsible:hover {
+      background-color: #e5e7eb;
+    }
+
+    .content {
+      display: none;
+      overflow: hidden;
+      padding: 10px 0;
+    }
+
+    footer {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      font-size: 0.875rem;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <header class="absolute top-4 left-4">
+    <h1 class="text-2xl font-bold text-gray-800">3D Model Viewer</h1>
+    <p class="text-sm text-gray-600">Interact with animations and layers</p>
+  </header>
+
+  <div id="ui-container" class="absolute top-20 left-4">
+    <!-- Collapsible Animation Controls -->
+    <button class="collapsible">Animations</button>
+    <div class="content">
+      <div class="grid grid-cols-3 gap-2">
+        <button id="wave-button" class="px-3 py-2 bg-blue-500 text-white rounded shadow-md hover:bg-blue-600 hover:shadow-lg">
+          <i class="fas fa-hand-paper"></i> Wave
+        </button>
+        <button id="fly-button" class="px-3 py-2 bg-green-500 text-white rounded shadow-md hover:bg-green-600 hover:shadow-lg">
+          <i class="fas fa-plane"></i> Fly
+        </button>
+        <button id="walk-button" class="px-3 py-2 bg-yellow-500 text-white rounded shadow-md hover:bg-yellow-600 hover:shadow-lg">
+          <i class="fas fa-walking"></i> Walk
+        </button>
+        <button id="run-button" class="px-3 py-2 bg-purple-500 text-white rounded shadow-md hover:bg-purple-600 hover:shadow-lg">
+          <i class="fas fa-running"></i> Run
+        </button>
+        <button id="hit-button" class="px-3 py-2 bg-red-500 text-white rounded shadow-md hover:bg-red-600 hover:shadow-lg">
+          <i class="fas fa-fist-raised"></i> Hit
+        </button>
+        <button id="crouch-button" class="px-3 py-2 bg-gray-500 text-white rounded shadow-md hover:bg-gray-600 hover:shadow-lg">
+          <i class="fas fa-user-crouch"></i> Crouch
+        </button>
+      </div>
+    </div>
+
+    <!-- Collapsible View Layers -->
+    <button class="collapsible">View Layers</button>
+    <div class="content">
+      <div class="grid grid-cols-3 gap-2">
+        <button id="layer1-button" class="px-3 py-2 bg-indigo-500 text-white rounded shadow-md hover:bg-indigo-600 hover:shadow-lg">
+          <i class="fas fa-layer-group"></i> Layer 1
+        </button>
+        <button id="layer2-button" class="px-3 py-2 bg-indigo-500 text-white rounded shadow-md hover:bg-indigo-600 hover:shadow-lg">
+          <i class="fas fa-layer-group"></i> Layer 2
+        </button>
+        <button id="layer3-button" class="px-3 py-2 bg-indigo-500 text-white rounded shadow-md hover:bg-indigo-600 hover:shadow-lg">
+          <i class="fas fa-layer-group"></i> Layer 3
+        </button>
+      </div>
+    </div>
+
+    <!-- Upload Skin Button -->
+    <button class="collapsible">Upload Skin</button>
+    <div class="content">
+      <input type="file" id="upload-skin" accept="image/png" class="px-3 py-2 bg-gray-200 rounded shadow-md hover:bg-gray-300" />
+    </div>
+
+    <!-- Dynamic Skin Parts Section -->
+    <button class="collapsible">Skin Parts</button>
+    <div id="skin-parts-container" class="content">
+      <!-- Buttons will be dynamically added here -->
+    </div>
+  </div>
+
+  <footer class="text-center mt-4">
+    <p class="text-sm text-gray-500">© 2025 3D Viewer. All rights reserved.</p>
+  </footer>
+
+  <!-- Include Three.js, OrbitControls, GLTFLoader, and SkinView3D -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+   
+  <script>
+    let scene, camera, renderer, controls, currentModel;
+    let loadedMeshes = []; // Meshes used for explosion effect.
+    let explodeFactor = 0; // Controlled by the slider.
+    let explodeFace = true; // Toggle for face vs. whole-mesh explosion.
+
+    init();
+    animate();
+
+    function init() {
+      // Create scene with a white background.
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0xffffff);
+
+      // Setup camera.
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, -1, 3);
+
+      // Create renderer.
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // Orbit controls.
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.target.set(0, 0, 0);
+      controls.update();
+
+      // Lighting.
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444);
+      hemiLight.position.set(0, 20, 0);
+      scene.add(hemiLight);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff);
+      dirLight.position.set(3, 10, 10);
+      scene.add(dirLight);
+
+      window.addEventListener('resize', onWindowResize, false);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    function loadGLB(arrayBuffer) {
+      const loader = new THREE.GLTFLoader();
+      loader.parse(arrayBuffer, '', function (gltf) {
+        if (currentModel) {
+          scene.remove(currentModel);
+          loadedMeshes = [];
+        }
+        currentModel = gltf.scene;
+
+        const box = new THREE.Box3().setFromObject(currentModel);
+        const size = box.getSize(new THREE.Vector3());
+        const center = box.getCenter(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const desiredSize = 2;
+        const scaleFactor = desiredSize / maxDim;
+        currentModel.scale.set(scaleFactor, scaleFactor, scaleFactor);
+        box.setFromObject(currentModel);
+        box.getCenter(center);
+        currentModel.position.x += currentModel.position.x - center.x;
+        currentModel.position.y += currentModel.position.y - center.y;
+        currentModel.position.z += currentModel.position.z - center.z;
+
+        currentModel.rotation.y = Math.PI;
+
+        scene.add(currentModel);
+
+        const skinPartsContainer = document.getElementById('skin-parts-container');
+        skinPartsContainer.innerHTML = '';
+        currentModel.traverse(function (child) {
+          if (child.isMesh) {
+            const button = document.createElement('button');
+            button.textContent = child.name || 'Unnamed Part';
+            button.className = 'px-3 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600';
+            button.addEventListener('click', () => {
+              child.visible = !child.visible;
+            });
+            skinPartsContainer.appendChild(button);
+          }
+        });
+      });
+    }
+
+    document.getElementById('upload-skin').addEventListener('change', function (event) {
+      const file = event.target.files[0];
+      if (file && file.type === 'image/png') {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          const textureLoader = new THREE.TextureLoader();
+          textureLoader.load(
+            e.target.result,
+            function (texture) {
+              if (currentModel) {
+                currentModel.traverse(function (child) {
+                  if (child.isMesh && child.material) {
+                    // Ensure the material supports textures
+                    if (child.material.map || child.material instanceof THREE.MeshStandardMaterial || child.material instanceof THREE.MeshPhongMaterial) {
+                      texture.wrapS = THREE.RepeatWrapping;
+                      texture.wrapT = THREE.RepeatWrapping;
+                      texture.repeat.set(1, 1); // Adjust as needed
+                      child.material.map = texture;
+                      child.material.needsUpdate = true;
+                    }
+                  }
+                });
+                alert('Skin applied successfully!');
+              } else {
+                alert('No model loaded to apply the skin.');
+              }
+            },
+            undefined,
+            function (error) {
+              console.error('Error loading texture:', error);
+              alert('Failed to load the texture. Please try again.');
+            }
+          );
+        };
+        reader.readAsDataURL(file);
+      } else {
+        alert('Please upload a valid PNG file.');
+      }
+    });
+  </script>
+
+  <script>
+    const collapsibles = document.querySelectorAll('.collapsible');
+    collapsibles.forEach((collapsible) => {
+      collapsible.addEventListener('click', () => {
+        collapsible.classList.toggle('active');
+        const content = collapsible.nextElementSibling;
+        content.style.display = content.style.display === 'block' ? 'none' : 'block';
+      });
+    });
+  </script>
+</body>
+</html>
